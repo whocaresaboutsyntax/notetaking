@@ -1,0 +1,47 @@
+import json
+
+def lambda_handler(event, context):
+    print("Received event: " + json.dumps(event))  # Logs the incoming event
+
+    # Extract the numbers and operation from the event input
+    num1 = event.get('num1')
+    num2 = event.get('num2')
+    operation = event.get('operation')
+    
+    if num1 is None or num2 is None or operation is None:
+        return {
+            'statusCode': 400,
+            'body': json.dumps('Invalid input. Please provide num1, num2, and operation.')
+        }
+    
+    result = None
+    try:
+        if operation == 'add':
+            result = num1 + num2
+        elif operation == 'subtract':
+            result = num1 - num2
+        elif operation == 'multiply':
+            result = num1 * num2
+        elif operation == 'divide':
+            if num2 == 0:
+                raise ValueError('Cannot divide by zero')
+            result = num1 / num2
+        else:
+            raise ValueError('Invalid operation')
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({'result': result})
+        }
+
+    except ValueError as e:
+        return {
+            'statusCode': 400,
+            'body': json.dumps(str(e))
+        }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Internal server error: ' + str(e))
+        }

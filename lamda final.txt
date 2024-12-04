@@ -1,0 +1,86 @@
+import json
+import boto3
+from botocore.exceptions import ClientError
+import uuid
+from time import gmtime, strftime
+
+# create a DynamoDB object using the AWS SDK
+dynamodb = boto3.resource('dynamodb')
+# use the DynamoDB object to select our table
+table = dynamodb.Table('CalculatorDatabase')
+# store the current time in a human readable format in a variable
+now = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
+
+def lambda_handler(event, context):
+    # Extract the numbers and operation from the event input
+    num1 = event.get('num1')
+    num2 = event.get('num2')
+    operation = event.get('operation')
+    
+    # Check for missing inputs
+    if num1 is None or num2 is None or operation is None:
+        return {
+            'statusCode': 400,
+            'body': json.dumps('Invalid input. Please provide num1, num2, and operation.')
+        }
+    
+    result = None
+    try:
+        # Perform the requested operation
+        if operation == 'add':
+            result = num1 + num2
+        elif operation == 'subtract':
+            result = num1 - num2
+        elif operation == 'multiply':
+            result = num1 * num2
+        elif operation == 'divide':
+            if num2 == 0:
+                raise ValueError('Cannot divide by zero')
+            result = num1 / num2
+        else:
+            raise ValueError('Invalid operation')
+
+        # Save the result to DynamoDB
+        save_to_dynamodb(num1, num2, operation, result)
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps({'result': result})
+        }
+
+    except ValueError as e:
+        return {
+            'statusCode': 400,
+            'body': json.dumps(str(e))
+        }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Internal server error: ' + str(e))
+        }
+
+def save_to_dynamodb(num1, num2, operation, result):
+    try:
+        # Generate a unique operation_id using UUID
+        operation_id = str(uuid.uuid4())  # Unique ID for the operation
+
+        # Insert the calculation into DynamoDB
+        response = table.put_item(
+            Item={
+                'ID': operation_id,  # Use 'ID' as the partition key
+                'num1': num1,
+                'num2': num2,
+                'operation': operation,
+                'result': result,
+                'timestamp': now  # Add the timestamp for reference
+            }
+        )
+        
+        # Log the successful insertion (optional)
+        print("PutItem succeeded:", response)
+
+    except ClientError as e:
+        # Log the error message if the insert fails
+        print("Error writing to DynamoDB:", e.response['Error']['Message'])
+        raise Exception(f"Error writing to DynamoDB: {e.response['Error']['Message']}")
